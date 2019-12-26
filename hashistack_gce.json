@@ -1,0 +1,88 @@
+{
+  "description" : "Packer image for GCE image containing the HashiStack",
+  "variables"   : {
+    "project_id"              : "{{ env `project_id` }}",
+    "bucket"                  : "{{ env `bucket` }}",
+    "zone"                    : "{{ env `zone` }}",
+    "machine_type"            : "{{ env `machine_type` }}",
+    "terraform_version"       : "{{ env `terraform_version` }}",
+    "vault_version"           : "{{ env `vault_version` }}",
+    "consul_version"          : "{{ env `consul_version` }}",
+    "nomad_version"           : "{{ env `nomad_version` }}",
+    "packer_version"          : "{{ env `packer_version` }}",
+    "hashi_base_url"          : "{{ env `hashi_base_url` }}",
+    "hashi_download_dir"      : "{{ env `hashi_download_dir` }}",
+    "source_image_family"     : "{{ env `source_image_family` }}",
+    "image_name"              : "{{ env `image_name` }}",
+    "image_description"       : "{{ env `image_description` }}",
+    "ssh_username"            : "{{ env `ssh_username` }}",
+    "tag_owner"               : "{{ env `tag_owner` }}",
+    "tag_timestamp"           : "{{ env `tag_timestamp` }}"
+  },
+  "builders": [
+    {
+      "type"                  : "googlecompute",
+      "project_id"            : "{{ user `project_id` }}",
+      "zone"                  : "{{ user `zone` }}",
+      "source_image_family"   : "{{ user `source_image_family` }}",
+      "machine_type"          : "{{ user `machine_type` }}",
+      "ssh_username"          : "{{ user `ssh_username` }}",
+      "image_name"            : "{{ user `image_name` }}",
+      "image_description"     : "{{ user `image_description` }}"
+    }
+  ],
+  "provisioners" : [
+    {
+      "type" : "shell",
+      "inline" : [
+        "sudo apt update",
+        "sudo apt-get install -y gnupg openssl jq unzip htop"
+      ]
+    },
+    {
+      "type"        : "file",
+      "source"      : "files/hashi_gpg_key_install.sh",
+      "destination" : "/tmp/hashi_gpg_key_install.sh"
+    },
+    {
+      "type"        : "file",
+      "source"      : "files/hashi_install.sh",
+      "destination" : "/tmp/hashi_install.sh"
+    },
+    {
+      "type"        : "file",
+      "source"      : "files/vault.service",
+      "destination" : "/tmp/vault.service"
+    },
+    {
+      "type"        : "file",
+      "source"      : "files/consul.service",
+      "destination" : "/tmp/consul.service"
+    },
+    {
+      "type"             : "shell",
+      "inline" : [
+        "sudo bash /tmp/hashi_install.sh {{ user `hashi_download_dir`}} {{ user `hashi_base_url` }} vault {{ user `vault_version` }} ent",
+        "sudo bash /tmp/hashi_install.sh {{ user `hashi_download_dir`}} {{ user `hashi_base_url` }} consul {{ user `consul_version` }} ent",
+        "sudo bash /tmp/hashi_install.sh {{ user `hashi_download_dir`}} {{ user `hashi_base_url` }} nomad {{ user `nomad_version` }}",
+        "sudo bash /tmp/hashi_install.sh {{ user `hashi_download_dir`}} {{ user `hashi_base_url` }} terraform {{ user `terraform_version` }}",
+        "sudo bash /tmp/hashi_install.sh {{ user `hashi_download_dir`}} {{ user `hashi_base_url` }} packer {{ user `packer_version` }}",
+        "sudo /usr/local/bin/vault -autocomplete-install",
+        "sudo setcap cap_ipc_lock=+ep /usr/local/bin/vault",
+        "sudo useradd --system --home /etc/vault.d --shell /bin/false vault",
+        "sudo mkdir /etc/vault.d",
+        "sudo touch /etc/vault.d/vault.hcl",
+        "sudo chown -R vault:vault /etc/vault.d",
+        "sudo chmod 640 /etc/vault.d/vault.hcl",
+        "sudo /usr/local/bin/consul -autocomplete-install",
+        "sudo useradd --system --home /etc/consul.d --shell /bin/false consul",
+        "sudo mkdir /etc/consul.d",
+        "sudo touch /etc/consul.d/consul.json",
+        "sudo chown -R consul:consul /etc/consul.d",
+        "sudo chmod 640 /etc/consul.d/consul.json",
+        "sudo mv /tmp/vault.service /etc/systemd/system/vault.service",
+        "sudo mv /tmp/consul.service /etc/systemd/system/consul.service"
+      ]
+    }
+  ]
+}
